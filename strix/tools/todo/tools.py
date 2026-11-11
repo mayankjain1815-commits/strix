@@ -110,10 +110,17 @@ def _get_agent_todos(agent_id: str) -> dict[str, dict[str, Any]]:
 
 
 def _normalize_priority(priority: str | None, default: str = "normal") -> str:
-    candidate = (priority or default or "normal").lower()
+    candidate = str(priority or default or "normal").strip().lower()
     if candidate not in VALID_PRIORITIES:
         raise ValueError(f"Invalid priority. Must be one of: {', '.join(VALID_PRIORITIES)}")
     return candidate
+
+
+def _coerce_priority(priority: str | None, default: str = "normal") -> str:
+    try:
+        return _normalize_priority(priority, default)
+    except ValueError:
+        return default
 
 
 def _sorted_todos(agent_id: str) -> list[dict[str, Any]]:
@@ -285,8 +292,9 @@ async def create_todo(ctx: RunContextWrapper, todos: str) -> str:
             - ``description`` (str, optional): extra context or
               acceptance criteria.
             - ``priority`` (str, optional): one of ``"low"`` /
-              ``"normal"`` / ``"high"`` / ``"critical"``. Defaults to
-              ``"normal"``.
+              ``"normal"`` / ``"high"`` / ``"critical"``. Anything else,
+              including omitting it, falls back to ``"normal"`` rather
+              than failing.
 
             Example: ``[{"title": "Probe /admin", "priority": "high"},
             {"title": "Check JWT alg=none"}]``.
@@ -304,7 +312,7 @@ async def create_todo(ctx: RunContextWrapper, todos: str) -> str:
         agent_todos = _get_agent_todos(agent_id)
         created: list[dict[str, Any]] = []
         for task in tasks:
-            task_priority = _normalize_priority(task.get("priority"))
+            task_priority = _coerce_priority(task.get("priority"))
             todo_id = str(uuid.uuid4())[:6]
             timestamp = datetime.now(UTC).isoformat()
             agent_todos[todo_id] = {
