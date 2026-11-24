@@ -100,12 +100,21 @@ def spec_title(raw: dict[str, Any]) -> str:
 
 
 def _absolute_urls(candidates: list[str]) -> list[str]:
-    """Keep absolute http(s) URLs, without trailing slashes, in declared order."""
+    """Keep absolute, fully resolved http(s) URLs, in declared order.
+
+    A URL still holding an unresolved ``{var}`` (OpenAPI server variable with no
+    default) or ``{{var}}`` (Postman variable with no value) is a template, not a
+    host. urlsplit() happily accepts braces in a netloc, so without this check
+    such a value would be returned as an authorized in-scope target.
+    """
     urls: list[str] = []
     for candidate in candidates:
-        split = urlsplit(candidate.strip())
+        url = candidate.strip()
+        if "{" in url or "}" in url:
+            continue
+        split = urlsplit(url)
         if split.scheme in ("http", "https") and split.netloc:
-            urls.append(candidate.strip().rstrip("/"))
+            urls.append(url.rstrip("/"))
     return list(dict.fromkeys(urls))
 
 
