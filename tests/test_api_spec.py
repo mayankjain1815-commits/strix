@@ -149,6 +149,25 @@ def test_openapi_drops_unresolved_relative_server() -> None:
     assert spec_base_urls(raw) == []
 
 
+def test_openapi_drops_server_url_with_unresolved_variable() -> None:
+    raw = {
+        "openapi": "3.0.0",
+        "info": {"title": "X"},
+        "servers": [
+            {
+                "url": "https://{region}.api.shop.test/{ver}",
+                "variables": {
+                    "region": {"description": "choose a region"},  # no default
+                    "ver": {"default": "v1"},
+                },
+            }
+        ],
+    }
+    # {region} has no default, so the host is still a template and must not be
+    # authorized as an in-scope web target.
+    assert spec_base_urls(raw) == []
+
+
 def test_swagger_base_urls_built_from_host() -> None:
     assert spec_base_urls(SWAGGER_JSON) == ["https://legacy.test/api"]
 
@@ -191,6 +210,16 @@ def test_postman_resolves_collection_variables() -> None:
 def test_postman_without_env_leaves_variable_unresolved() -> None:
     # {{baseUrl}} never resolves -> no absolute host recovered
     assert spec_base_urls(POSTMAN_NEEDS_ENV) == []
+
+
+def test_postman_drops_absolute_url_with_unresolved_variable() -> None:
+    raw = {
+        "info": {"_postman_id": "u-1"},
+        "item": [{"request": {"url": {"raw": "https://{{host}}/things/1"}}}],
+    }
+    # The scheme is absolute, but {{host}} is still a template; urlsplit() alone
+    # accepts it as a netloc, which would authorize a non-existent host.
+    assert spec_base_urls(raw) == []
 
 
 def test_postman_environment_values_resolve_base_url() -> None:
